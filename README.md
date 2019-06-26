@@ -37,9 +37,41 @@ Type out
 
 ```
 $ git pr status
-------------  ---------  ------------------------------------  ----------------------------------------------
-pull request  can merge  Add first version of the git-pr tool  https://github.com/andersjohnsen/git-pr/pull/1
-review        pending    No reviews reported
-build         invalid    Revision not being built
-------------  ---------  ------------------------------------  ----------------------------------------------
 ```
+
+and to get the list of your open pull requests, use
+```
+$ git pr list
+```
+
+and for all open pull requests associated to the repository
+
+```
+$ git pr list --all
+```
+
+### Updating
+
+When you have committed new changes locally to your branch, run
+```
+$ git pr update
+```
+
+to update the remote pull request with your latest changes.
+
+If you changed your history, e.g. by using rebase, you can force push your changes by using
+
+```
+$ git pr update -f
+```
+
+
+### Landing
+
+Finally, you can now do
+
+```
+$ git pr land
+```
+
+This will `squash-merge` your change, delete the remote branch, update local master, and delete local branch if pointing to the new master.
