@@ -5,6 +5,8 @@ import yaml
 import json
 import click
 import subprocess
+import tempfile
+import os
 from pathlib import Path
 from termcolor import colored
 from tabulate import tabulate
@@ -61,6 +63,14 @@ def push(rev, force):
     cmd = ['git', 'push', 'origin', rev]
     if force: cmd.append('-f')
     return subprocess.check_output(cmd)
+
+def commit_log(rev, base):
+    return subprocess.check_output(['git', 'log', '--reverse', '--format=%B', f'{base}..{rev}']).decode('utf-8')
+
+def edit(file):
+    editor = os.environ.get('EDITOR', 'editor')
+    return subprocess.call([editor, file.name])
+
 
 class Status:
     def __init__(self, kind, state, description, url):
@@ -135,15 +145,27 @@ def status():
     print(tabulate(table))
 
 @cli.command()
-def create():
+@click.option('--reviewer', '-r', multiple=True)
+@click.option('--base', '-b', default='master')
+def create(reviewer, base):
     rev = current_rev()
+    msg = commit_log(rev, base)
+    with tempfile.NamedTemporaryFile(suffix=".tmp") as file:
+        file = tempfile.NamedTemporaryFile(delete=False)
+        file.write(msg.encode('utf8'))
+        file.flush()
+        edit(file)
+        file.seek(0)
+        msg = file.read().decode('utf8')
 
     push(rev, False)
 
+    parts = msg.split('\n', 1)
     pull_request = {
-        'title': title(rev),
+        'title': parts[0].strip(),
+        'body': parts[1].strip(),
         'head': rev,
-        'base': 'master',
+        'base': base,
     }
 
     result = post(f'https://api.github.com/repos/{repo}/pulls', pull_request)
@@ -151,6 +173,11 @@ def create():
     number = result.get('number')
     url = result.get('html_url')
     print(f"Created pull request #{number}: {url}")
+
+    if reviewer:
+        post(f'https://api.github.com/repos/{repo}/pulls/{number}/requested_reviewers', {
+            "reviewers": reviewer,
+        })
 
 @cli.command()
 @click.option('--force', '-f', is_flag=True, help='force push changed to the branch')
