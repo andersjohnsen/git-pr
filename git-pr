@@ -74,6 +74,7 @@ class Status:
         if self.state == 'approved': return 'green'
         if self.state == 'can merge': return 'green'
         if self.state == 'pending': return 'yellow'
+        if self.state == 'invalid': return 'yellow'
         return 'red'
 
     def as_row(self):
