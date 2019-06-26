@@ -106,9 +106,13 @@ def get_review_status(pull_request):
     user = reviews[0].get('user').get('login')
     return Status('review', reviews[0].get('state').lower(), f'Reviewed by @{user}', reviews[0].get('html_url'))
 
+def get_pull_request_full(pull_request):
+    return get(f'https://api.github.com/repos/{repo}/pulls/{pull_request}')
+
 def get_pull_request_status(pull_request):
-    pr = get(f'https://api.github.com/repos/{repo}/pulls/{pull_request}')
+    pr = get_pull_request_full(pull_request)
     return Status('pull request', 'can merge' if pr.get('mergeable') else 'cannot merge', pr.get('title'), pr.get('html_url'))
+
 
 @click.group()
 def cli():
@@ -191,7 +195,11 @@ def land():
     rev = commit_hash(branch)
     pull_request = find_pull_request(rev)
 
+    pull_request_full = get_pull_request_full(pull_request)
+
     put(f'https://api.github.com/repos/{repo}/pulls/{pull_request}/merge', {
+        'commit_title': pull_request_full.get('title'),
+        'commit_message': pull_request_full.get('body'),
         'merge_method': 'squash',
     })
 
@@ -202,7 +210,7 @@ def land():
 
     pull()
 
-    delete(branch, force=True)
+    delete(branch)
 
 if __name__ == '__main__':
     cli(obj={})
