@@ -1,0 +1,180 @@
+#!/usr/bin/python3
+
+import requests
+import yaml
+import json
+import click
+import subprocess
+from pathlib import Path
+from termcolor import colored
+from tabulate import tabulate
+
+home = str(Path.home())
+
+hub_config = yaml.load(open(home + '/.config/hub'))
+
+username = hub_config.get('github.com')[0].get('user')
+oauth_token = hub_config.get('github.com')[0].get('oauth_token')
+
+s = requests.Session()
+s.auth = (username, oauth_token)
+
+repo = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).rstrip().decode('utf-8').split(":")[1].replace('.git','')
+
+def get(url):
+    r = s.get(url)
+    r.raise_for_status()
+    return r.json()
+
+def post(url, body):
+    r = s.post(url, json=body)
+    r.raise_for_status()
+    return r.json()
+
+def put(url, body):
+    r = s.put(url, json=body)
+    r.raise_for_status()
+    return r.json()
+
+def current_rev():
+    return subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).rstrip().decode('utf-8')
+
+def commit_hash(rev):
+    return subprocess.check_output(['git', 'rev-parse', rev]).rstrip().decode('utf-8')
+
+def title(rev):
+    return subprocess.check_output(['git', 'log', '--oneline', '--format=%B', '-n1', rev]).decode('utf-8').split('\n')[0]
+
+def checkout(rev):
+    subprocess.check_output(['git', 'checkout', rev])
+
+def pull():
+    subprocess.check_output(['git', 'pull', '--ff-only'])
+
+def delete(branch):
+    subprocess.check_output(['git', 'branch', '-d', branch])
+
+def delete_remote(branch):
+    subprocess.check_output(['git', 'push', 'origin', '--delete', branch])
+
+def push(rev, force):
+    cmd = ['git', 'push', 'origin', rev]
+    if force: cmd.append('-f')
+    return subprocess.check_output(cmd)
+
+class Status:
+    def __init__(self, kind, state, description, url):
+        self.kind = kind
+        self.state = state
+        self.description = description
+        self.url = url
+
+    def color(self):
+        if self.state == 'success': return 'green'
+        if self.state == 'approved': return 'green'
+        if self.state == 'can merge': return 'green'
+        if self.state == 'pending': return 'yellow'
+        return 'red'
+
+    def as_row(self):
+        return [self.kind, colored(self.state, self.color()), self.description, self.url]
+
+def get_build_status(rev):
+    statuses = get(f'https://api.github.com/repos/{repo}/statuses/{rev}')
+    if len(statuses) == 0: return Status('build', 'invalid', 'Revision not being built', None)
+    return Status('build', statuses[0].get('state'), statuses[0].get('description'), statuses[0].get('target_url'))
+
+def find_pull_request(rev):
+    issue = get(f'https://api.github.com/search/issues?q={rev}')
+    if len(issue.get('items')) != 1: raise "revision not found"
+    return issue.get('items')[0].get('number')
+
+def get_review_status(pull_request):
+    reviews = get(f'https://api.github.com/repos/{repo}/pulls/{pull_request}/reviews')
+    if len(reviews) == 0: return Status('review', 'pending', 'No reviews reported', None)
+    user = reviews[0].get('user').get('login')
+    return Status('review', reviews[0].get('state').lower(), f'Reviewed by @{user}', reviews[0].get('html_url'))
+
+def get_pull_request_status(pull_request):
+    pr = get(f'https://api.github.com/repos/{repo}/pulls/{pull_request}')
+    return Status('pull request', 'can merge' if pr.get('mergeable') else 'cannot merge', pr.get('title'), pr.get('html_url'))
+
+@click.group()
+def cli():
+    pass
+
+@cli.command()
+@click.option('--all', '-a', is_flag=True)
+def list(all):
+    table = []
+
+    pull_requests = get(f'https://api.github.com/repos/{repo}/pulls')
+
+    for pr in pull_requests:
+        if not all and pr.get('user').get('login') != username: continue
+        table.append([pr.get('number'), pr.get('head').get('ref'), pr.get('title'), pr.get('html_url')])
+
+    print(tabulate(table))
+
+@cli.command()
+def status():
+    table = []
+
+    rev = commit_hash(current_rev())
+    pull_request = find_pull_request(rev)
+
+    table.append(get_pull_request_status(pull_request).as_row())
+
+    review_status = get_review_status(pull_request)
+    table.append(review_status.as_row())
+
+    build_status = get_build_status(rev)
+    table.append(build_status.as_row())
+
+    print(tabulate(table))
+
+@cli.command()
+def create():
+    rev = current_rev()
+
+    push(rev, False)
+
+    pull_request = {
+        'title': title(rev),
+        'head': rev,
+        'base': 'master',
+    }
+
+    result = post(f'https://api.github.com/repos/{repo}/pulls', pull_request)
+
+    number = result.get('number')
+    url = result.get('html_url')
+    print(f"Created pull request #{number}: {url}")
+
+@cli.command()
+@click.option('--force', '-f', is_flag=True, help='force push changed to the branch')
+def update(force):
+    rev = current_rev()
+    push(rev, force)
+
+@cli.command()
+def land():
+    branch = current_rev()
+    rev = commit_hash(branch)
+    pull_request = find_pull_request(rev)
+
+    put(f'https://api.github.com/repos/{repo}/pulls/{pull_request}/merge', {
+        'merge_method': 'squash',
+    })
+
+    delete_remote(branch)
+
+    # TODO: This should probably be the base of the pull request.
+    checkout('master')
+
+    pull()
+
+    delete(branch)
+
+if __name__ == '__main__':
+    cli(obj={})
