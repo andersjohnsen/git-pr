@@ -210,7 +210,7 @@ def land():
 
     pull()
 
-    delete(branch)
+    delete(branch, force=True)
 
 if __name__ == '__main__':
     cli(obj={})
