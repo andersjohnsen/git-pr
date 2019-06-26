@@ -9,6 +9,12 @@ To install put the tool into your path, e.g.:
 $ ln -s `pwd`/git-pr ~/.local/bin/git-pr
 ```
 
+and install requirements:
+
+```
+$ pip3 install -r requirements.txt
+```
+
 The tool can now be invoked by saying
 
 ```
