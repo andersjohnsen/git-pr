@@ -197,13 +197,9 @@ def land():
 
     pull_request_full = get_pull_request_full(pull_request)
 
-    print(json.dumps(status))
-    exit(0)
-
-
     put(f'https://api.github.com/repos/{repo}/pulls/{pull_request}/merge', {
-        'commit_title': 'pull-request',
-        'commit_message': 'pull-request',
+        'commit_title': pull_request_full.get('title'),
+        'commit_message': pull_request_full.get('body'),
         'merge_method': 'squash',
     })
 
