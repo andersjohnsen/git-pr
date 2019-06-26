@@ -80,4 +80,4 @@ Finally, you can now do
 $ git pr land
 ```
 
-This will `squash-merge` your change, delete the remote branch, update local master, and delete local branch if pointing to the new master.
+This will `squash-merge` your change, delete the remote branch, update local master, and delete local branch.

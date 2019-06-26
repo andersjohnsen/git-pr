@@ -51,8 +51,8 @@ def checkout(rev):
 def pull():
     subprocess.check_output(['git', 'pull', '--ff-only'])
 
-def delete(branch):
-    subprocess.check_output(['git', 'branch', '-d', branch])
+def delete(branch, force):
+    subprocess.check_output(['git', 'branch', '-D' if force else '-d', branch])
 
 def delete_remote(branch):
     subprocess.check_output(['git', 'push', 'origin', '--delete', branch])
@@ -164,10 +164,7 @@ def land():
     rev = commit_hash(branch)
     pull_request = find_pull_request(rev)
 
-    status = get_pull_request_status(pull_request)
-
     put(f'https://api.github.com/repos/{repo}/pulls/{pull_request}/merge', {
-        'title': status.description,
         'merge_method': 'squash',
     })
 
@@ -178,7 +175,7 @@ def land():
 
     pull()
 
-    delete(branch)
+    delete(branch, force=True)
 
 if __name__ == '__main__':
     cli(obj={})
