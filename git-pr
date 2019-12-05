@@ -60,7 +60,7 @@ def delete_remote(branch):
     subprocess.check_output(['git', 'push', 'origin', '--delete', branch])
 
 def push(rev, force):
-    cmd = ['git', 'push', 'origin', rev]
+    cmd = ['git', 'push', 'origin', f'{username}-{rev}']
     if force: cmd.append('-f')
     return subprocess.check_output(cmd)
 
