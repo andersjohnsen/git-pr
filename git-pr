@@ -99,7 +99,7 @@ def get_build_status(rev):
     return Status('build', statuses[0].get('state'), statuses[0].get('description'), statuses[0].get('target_url'))
 
 def find_pull_request(rev):
-    issue = get(f'https://api.github.com/search/issues?q={to_remote_rev(rev)}')
+    issue = get(f'https://api.github.com/search/issues?q={rev}')
     if len(issue.get('items')) != 1: raise "revision not found"
     return issue.get('items')[0].get('number')
 
@@ -194,7 +194,7 @@ def update(force):
 
 @cli.command()
 def land():
-    branch = current_rev()
+    branch = to_remote_rev(current_rev())
     rev = commit_hash(branch)
     pull_request = find_pull_request(rev)
 
