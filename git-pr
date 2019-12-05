@@ -23,6 +23,9 @@ s.auth = (username, oauth_token)
 
 repo = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url']).rstrip().decode('utf-8').split(":")[1].replace('.git','')
 
+def to_remote_rev(rev):
+    return f'{username}-{rev}'
+
 def get(url):
     r = s.get(url)
     r.raise_for_status()
@@ -60,7 +63,7 @@ def delete_remote(branch):
     subprocess.check_output(['git', 'push', 'origin', '--delete', branch])
 
 def push(rev, force):
-    cmd = ['git', 'push', 'origin', rev]
+    cmd = ['git', 'push', 'origin', f'{rev}:{to_remote_rev(rev)}']
     if force: cmd.append('-f')
     return subprocess.check_output(cmd)
 
@@ -96,7 +99,7 @@ def get_build_status(rev):
     return Status('build', statuses[0].get('state'), statuses[0].get('description'), statuses[0].get('target_url'))
 
 def find_pull_request(rev):
-    issue = get(f'https://api.github.com/search/issues?q={rev}')
+    issue = get(f'https://api.github.com/search/issues?q={to_remote_rev(rev)}')
     if len(issue.get('items')) != 1: raise "revision not found"
     return issue.get('items')[0].get('number')
 
@@ -168,7 +171,7 @@ def create(reviewer, base):
     pull_request = {
         'title': parts[0].strip(),
         'body': parts[1].strip(),
-        'head': rev,
+        'head': to_remote_rev(rev),
         'base': base,
     }
 
