@@ -99,7 +99,7 @@ def get_build_status(rev):
     return Status('build', statuses[0].get('state'), statuses[0].get('description'), statuses[0].get('target_url'))
 
 def find_pull_request(rev):
-    issue = get(f'https://api.github.com/search/issues?q={to_remote_rev(rev)}')
+    issue = get(f'https://api.github.com/search/issues?q={rev}')
     if len(issue.get('items')) != 1: raise "revision not found"
     return issue.get('items')[0].get('number')
 
@@ -138,15 +138,17 @@ def list(all):
 def status():
     table = []
 
-    rev = commit_hash(current_rev())
-    pull_request = find_pull_request(rev)
+    rev = current_rev()
+    hash = commit_hash(rev)
+    branch = to_remote_rev(rev)
+    pull_request = find_pull_request(hash)
 
     table.append(get_pull_request_status(pull_request).as_row())
 
     review_status = get_review_status(pull_request)
     table.append(review_status.as_row())
 
-    build_status = get_build_status(rev)
+    build_status = get_build_status(branch)
     table.append(build_status.as_row())
 
     print(tabulate(table))
@@ -194,9 +196,10 @@ def update(force):
 
 @cli.command()
 def land():
-    branch = current_rev()
-    rev = commit_hash(branch)
-    pull_request = find_pull_request(rev)
+    rev = current_rev()
+    hash = commit_hash(rev)
+    branch = to_remote_rev(rev)
+    pull_request = find_pull_request(hash)
 
     pull_request_full = get_pull_request_full(pull_request)
 
@@ -213,7 +216,7 @@ def land():
 
     pull()
 
-    delete(branch, force=True)
+    delete(rev, force=True)
 
 if __name__ == '__main__':
     cli(obj={})
